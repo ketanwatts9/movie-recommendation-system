@@ -1,6 +1,6 @@
 [
-  {"user_id": 1, "name": "Parth", "liked_items": ["movie1", "movie2", "movie4"], "preferred_genres": ["action", "comedy"]},
-  {"user_id": 2, "name": "Ketan",   "liked_items": ["movie2", "movie3", "movie4"], "preferred_genres": ["comedy", "drama"]},
-  {"user_id": 3, "name": "Lakshay", "liked_items": ["movie1", "movie3", "movie5"], "preferred_genres": ["action", "drama"]},
-  {"user_id": 4, "name": "ksjlfs", "liked_items": ["movie3", "movie5", "movie6"], "preferred_genres": ["drama", "thriller"]}
+  {"user_id": 1, "name": "Parth",   "liked_items": ["movie1", "movie2", "movie4"], "preferred_genres": ["action", "comedy"], "role": "regular"},
+  {"user_id": 2, "name": "Ketan",   "liked_items": ["movie2", "movie3", "movie4"], "preferred_genres": ["comedy", "drama"],  "role": "regular"},
+  {"user_id": 3, "name": "Lakshay", "liked_items": ["movie1", "movie3", "movie5"], "preferred_genres": ["action", "drama"],  "role": "regular"},
+  {"user_id": 4, "name": "Admin",   "liked_items": ["movie3", "movie5", "movie6"], "preferred_genres": ["drama", "thriller"],"role": "admin"}
 ]
