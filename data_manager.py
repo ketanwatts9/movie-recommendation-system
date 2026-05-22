@@ -1,22 +1,25 @@
 """
 data_manager.py
 ═════════════════════════════════════════════════
-  TEAM MEMBER 2 — Data Manager
+  TEAM MEMBER 2 - Lakshay— Data Manager
   Contains: DataManager class
   Handles ALL file reading and writing.
-  Loads JSON → creates Movie/User objects
-  Saves Movie/User objects → back to JSON
+  Loads JSON → creates Movie/RegularUser/Admin objects
+  Saves objects → back to JSON
+
+  Key decision: dict {id → object} for O(1) lookup
+  instead of O(n) list scanning.
 ═════════════════════════════════════════════════
 """
 
 import json
-from models import Movie, User   # import our data model classes
+from models import Movie, RegularUser, Admin
 
 
 # ══════════════════════════════════════════════════
 #  CLASS: DataManager
-#  Single responsibility: only reads and writes files
-#  All other classes use this to get/save data
+#  Single responsibility: only reads and writes files.
+#  All other classes use this to get/save data.
 # ══════════════════════════════════════════════════
 
 class DataManager:
@@ -28,25 +31,45 @@ class DataManager:
     # ── Load Methods ──────────────────────────────
 
     def load_users(self):
-        """Read users.json → return list of User objects"""
-        with open(self.users_file) as f:
-            raw_list = json.load(f)
+        """Read users.json → return list of RegularUser or Admin objects.
+        Role stored in JSON determines which subclass is instantiated."""
+        try:
+            with open(self.users_file) as f:
+                raw_list = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"  ⚠️  Could not load users file: {e}")
+            return []
 
         users = []
         for data in raw_list:
-            user = User(
-                user_id          = data["user_id"],
-                name             = data["name"],
-                liked_items      = data.get("liked_items", []),
-                preferred_genres = data.get("preferred_genres", [])
-            )
+            role = data.get("role", "regular")
+
+            # Instantiate correct subclass based on stored role
+            if role == "admin":
+                user = Admin(
+                    user_id          = data["user_id"],
+                    name             = data["name"],
+                    liked_items      = data.get("liked_items", []),
+                    preferred_genres = data.get("preferred_genres", [])
+                )
+            else:
+                user = RegularUser(
+                    user_id          = data["user_id"],
+                    name             = data["name"],
+                    liked_items      = data.get("liked_items", []),
+                    preferred_genres = data.get("preferred_genres", [])
+                )
             users.append(user)
         return users
 
     def load_movies(self):
         """Read items.json → return list of Movie objects"""
-        with open(self.items_file) as f:
-            raw_list = json.load(f)
+        try:
+            with open(self.items_file) as f:
+                raw_list = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"  ⚠️  Could not load movies file: {e}")
+            return []
 
         movies = []
         for data in raw_list:
