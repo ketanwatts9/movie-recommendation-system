@@ -2,14 +2,14 @@
 main.py
 ═════════════════════════════════════════════════
   ENTRY POINT — Run this file to start the app.
-  Just imports the system and starts it.
 
-  To run:  python main.py
+  To run:     python main.py
+  To test:    python tests.py
 ═════════════════════════════════════════════════
 """
 
 from data_manager import DataManager
-from recommender import RecommendationSystem
+from recommender  import RecommendationSystem
 
 
 if __name__ == "__main__":
