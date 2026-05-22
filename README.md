@@ -8,9 +8,9 @@ A terminal-based interactive movie recommendation system built with Python using
 
 | Person | File | Responsible For |
 |--------|------|----------------|
-| Person 1 | `models.py` | `Movie` class, `User` class |
-| Person 2 | `data_manager.py` | `DataManager` class |
-| Person 3 | `recommender.py`, `main.py` | `RecommendationSystem` class, entry point |
+| Ketan | `models.py` | `Movie` class, `User` class |
+| Lakshay | `data_manager.py` | `DataManager` class |
+| Parth | `recommender.py`, `main.py` | `RecommendationSystem` class, entry point |
 
 ---
 
