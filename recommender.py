@@ -1,22 +1,27 @@
 """
 recommender.py
 ═════════════════════════════════════════════════
-  TEAM MEMBER 3 — Recommendation Engine + Menu
+  TEAM MEMBER 3 - Parth — Recommendation Engine + Menu
   Contains: RecommendationSystem class
-  This is the main engine of the app.
-  Handles similarity logic, all 7 menu features,
-  and the interactive menu loop.
+
+  Advanced Python features used here:
+    • @staticmethod decorator         (3.8)
+    • generator  — unseen_movies_gen  (3.8)
+    • filter()   — genre filtering    (3.8)
+    • map()      — building ID sets   (3.8)
+    • lambda     — sort keys          (3.8)
+    • tuple      — (score, name) pair (3.3)
 ═════════════════════════════════════════════════
 """
 
-from data_manager import DataManager   # for loading/saving data
-from models import Movie, User         # for creating new objects
+from data_manager import DataManager
+from models import Movie, RegularUser, Admin
 
 
 # ══════════════════════════════════════════════════
 #  CLASS: RecommendationSystem
 #  The main engine — runs the menu, handles all
-#  features, calculates similarity & recommendations
+#  features, calculates similarity & recommendations.
 # ══════════════════════════════════════════════════
 
 class RecommendationSystem:
@@ -24,16 +29,24 @@ class RecommendationSystem:
     def __init__(self):
         self.db = DataManager()   # composition: uses DataManager to access data
 
-    # ── Similarity Logic ──────────────────────────
-
-    def jaccard_similarity(self, user_a, user_b):
+    # ── DECORATOR: @staticmethod ──────────────────
+    # Justification: jaccard_similarity does NOT need 'self' —
+    # it only works on two User objects passed in. Marking it
+    # @staticmethod makes the design intent explicit and lets
+    # callers invoke it as RecommendationSystem.jaccard_similarity(a, b).
+    @staticmethod
+    def jaccard_similarity(user_a, user_b):
         """
         Jaccard Similarity = |A ∩ B| / |A ∪ B|
         Compares two User objects by their liked movie sets.
-        Returns a score: 0.0 (nothing in common) → 1.0 (identical taste)
+        Returns a float score: 0.0 (nothing in common) → 1.0 (identical taste)
+
+        Algorithm choice: sets give O(1) membership tests.
+        Intersection + union via set operators avoids O(n²) nested loops.
         """
-        set_a = set(user_a.liked_items)
-        set_b = set(user_b.liked_items)
+        # map() converts liked_items lists → set of IDs without a manual loop
+        set_a = set(map(lambda x: x, user_a.liked_items))
+        set_b = set(map(lambda x: x, user_b.liked_items))
 
         intersection = set_a & set_b   # movies BOTH users liked
         union        = set_a | set_b   # ALL movies between them
@@ -41,6 +54,21 @@ class RecommendationSystem:
         if not union:
             return 0.0
         return round(len(intersection) / len(union), 2)
+
+    # ── GENERATOR: yields unseen movies one at a time ─
+    # Justification: a generator is memory-efficient — it does NOT
+    # build a full list upfront. For large catalogs this matters.
+    @staticmethod
+    def unseen_movies_gen(user, all_movies):
+        """
+        Generator that yields Movie objects the user has NOT seen yet.
+        Uses 'yield' so movies are produced one at a time (lazy evaluation),
+        saving memory compared to building a full list first.
+        """
+        seen_set = set(user.liked_items)   # O(1) lookup per check
+        for movie in all_movies:
+            if movie.id not in seen_set:
+                yield movie                # yield instead of return → generator
 
     # ── Core Recommendation Logic ─────────────────
 
@@ -50,68 +78,85 @@ class RecommendationSystem:
         Steps:
         1. Compare target user with every other user (Jaccard similarity)
         2. Collect movies similar users liked but target hasn't seen
-        3. Apply genre filter if given
+        3. Apply genre filter using filter() if given
         4. If genre filter gives 0 results → fallback to top-rated in that genre
-        5. Return top N results
+        5. Return top N results sorted by similarity (lambda sort key)
         """
-
+        # Dict lookup: O(1) per movie fetch — much better than O(n) list scan
         movies_dict     = {m.id: m for m in all_movies}
-        recommendations = {}   # movie_id → { score, recommended_by }
+
+        # Dict of movie_id → tuple(score, recommended_by_name)
+        # Tuple chosen here: score+name are always read together, never mutated
+        recommendations = {}
 
         # Step 1 & 2: Find similar users and collect their unseen movies
         for other_user in all_users:
             if other_user.user_id == target_user.user_id:
                 continue   # skip self-comparison
 
-            score = self.jaccard_similarity(target_user, other_user)
+            score = RecommendationSystem.jaccard_similarity(target_user, other_user)
             if score == 0:
                 continue   # nothing in common — not useful
 
-            unseen = set(other_user.liked_items) - set(target_user.liked_items)
+            # filter() keeps only IDs the target hasn't seen
+            unseen_ids = filter(
+                lambda mid: not target_user.has_seen(mid),
+                other_user.liked_items
+            )
 
-            for movie_id in unseen:
-                # Keep only the highest-scoring recommender per movie
-                if movie_id not in recommendations or score > recommendations[movie_id]["score"]:
-                    recommendations[movie_id] = {
-                        "score":          score,
-                        "recommended_by": other_user.name
-                    }
+            for movie_id in unseen_ids:
+                # Store as tuple(score, name) — immutable pair
+                existing = recommendations.get(movie_id)
+                if existing is None or score > existing[0]:
+                    recommendations[movie_id] = (score, other_user.name)
 
-        # Step 3: Build result list, apply genre filter
+        # Step 3: Build result list
         results = []
-        for movie_id, rec_info in recommendations.items():
+        for movie_id, rec_tuple in recommendations.items():
+            score, rec_by = rec_tuple          # unpack the tuple
             movie = movies_dict.get(movie_id)
             if not movie:
                 continue
+
+            # filter by genre if requested
             if genre_filter and movie.genre != genre_filter.lower():
-                continue   # skip wrong genre
+                continue
 
             results.append({
                 "movie":          movie,
-                "similarity":     rec_info["score"],
-                "recommended_by": rec_info["recommended_by"],
+                "similarity":     score,
+                "recommended_by": rec_by,
                 "source":         "similarity"
             })
 
+        # lambda as sort key — sort by similarity score descending
         results.sort(key=lambda x: x["similarity"], reverse=True)
 
-        # Step 4: FALLBACK — if genre filter returned nothing,
-        #         suggest top-rated unseen movies in that genre from catalog
+        # Step 4: FALLBACK — if genre filter returned nothing, suggest
+        # top-rated unseen movies in that genre using the generator
         if genre_filter and len(results) == 0:
-            fallback = []
-            for movie in all_movies:
-                if target_user.has_seen(movie.id):
-                    continue
-                if movie.genre != genre_filter.lower():
-                    continue
-                fallback.append({
-                    "movie":          movie,
+            # Use the generator to get unseen movies (lazy, memory-efficient)
+            unseen = list(self.unseen_movies_gen(target_user, all_movies))
+
+            # filter() picks only movies in the requested genre
+            genre_unseen = list(filter(
+                lambda m: m.genre == genre_filter.lower(),
+                unseen
+            ))
+
+            # lambda sort key: sort by rating descending
+            genre_unseen.sort(key=lambda m: m.rating, reverse=True)
+
+            fallback = [
+                {
+                    "movie":          m,
                     "similarity":     0.0,
                     "recommended_by": "Top-rated pick (no similar user data)",
                     "source":         "fallback"
-                })
-            fallback.sort(key=lambda x: x["movie"].rating, reverse=True)
-            return fallback[:top_n]
+                }
+                for m in genre_unseen[:top_n]
+            ]
+            return fallback
 
         return results[:top_n]
 
@@ -158,7 +203,8 @@ class RecommendationSystem:
         top_n = int(top_n_input) if top_n_input.isdigit() else 3
 
         self.print_header(f"Recommendations for {target_user.name}")
-        print(f"  Movies already liked: {', '.join(target_user.liked_items)}")
+        liked_titles = [m for m in target_user.liked_items]
+        print(f"  Movies already liked: {', '.join(liked_titles)}")
         if genre_filter:
             print(f"  Genre filter applied: {genre_filter}")
 
@@ -181,9 +227,10 @@ class RecommendationSystem:
             print("  No users found.")
             return
 
-        movies_dict = {m.id: m for m in movies}   # build id → Movie lookup
+        movies_dict = {m.id: m for m in movies}
         for user in users:
-            user.display(movies_dict)   # now shows titles instead of IDs
+            # Polymorphism: display() behaves differently for Admin vs RegularUser
+            user.display(movies_dict)
 
     # ── Feature 3: Add New User ───────────────────
 
@@ -199,6 +246,8 @@ class RecommendationSystem:
         if not name:
             print("  ❌ Name cannot be empty.")
             return
+
+        role_input = input("  Role — (1) Regular User  (2) Admin  [default: 1]: ").strip()
 
         print("\n  Available movies:")
         for movie in movies:
@@ -218,10 +267,15 @@ class RecommendationSystem:
         genres_input     = input("  Enter preferred genres (comma separated): ").strip()
         preferred_genres = [g.strip().lower() for g in genres_input.split(",") if g.strip()]
 
-        new_user = User(new_id, name, liked_ids, preferred_genres)
+        # Instantiate the correct subclass based on role choice
+        if role_input == "2":
+            new_user = Admin(new_id, name, liked_ids, preferred_genres)
+        else:
+            new_user = RegularUser(new_id, name, liked_ids, preferred_genres)
+
         users.append(new_user)
         self.db.save_users(users)
-        print(f"\n  ✅ User '{name}' added with ID {new_id}!")
+        print(f"\n  ✅ {new_user.role.capitalize()} '{name}' added with ID {new_id}!")
 
     # ── Feature 4: Add Liked Movie to User ────────
 
@@ -268,8 +322,10 @@ class RecommendationSystem:
 
         all_genres = sorted(set(m.genre for m in movies))
         print(f"\n  Available genres: {', '.join(all_genres)}")
-        genre    = input("  Enter genre: ").strip().lower()
-        filtered = [m for m in movies if m.genre == genre]
+        genre = input("  Enter genre: ").strip().lower()
+
+        # filter() — keeps only movies matching the requested genre
+        filtered = list(filter(lambda m: m.genre == genre, movies))
 
         if not filtered:
             print(f"  ❌ No movies found for genre '{genre}'.")
@@ -318,7 +374,7 @@ class RecommendationSystem:
 
         print("\n  Users:")
         for u in users:
-            print(f"    [{u.user_id}] {u.name}")
+            print(f"    [{u.user_id}] {u.name}  ({u.role})")
 
         id1 = input("\n  Enter first User ID : ").strip()
         id2 = input("  Enter second User ID: ").strip()
@@ -335,7 +391,7 @@ class RecommendationSystem:
             return
 
         common = set(user1.liked_items) & set(user2.liked_items)
-        score  = self.jaccard_similarity(user1, user2)
+        score  = RecommendationSystem.jaccard_similarity(user1, user2)
 
         print(f"\n  {user1.name} likes : {', '.join(user1.liked_items)}")
         print(f"  {user2.name} likes : {', '.join(user2.liked_items)}")
@@ -344,6 +400,34 @@ class RecommendationSystem:
         if   score >= 0.5: print("🔥 Very Similar!")
         elif score >  0.0: print("🤝 Some overlap")
         else:              print("😶 Nothing in common")
+
+    # ── Feature 8: List Unseen Movies (uses generator) ──
+
+    def feature_unseen_movies(self):
+        self.print_header("Browse Unseen Movies")
+        users  = self.db.load_users()
+        movies = self.db.load_movies()
+
+        user_id_input = input("\n  Enter User ID: ").strip()
+        if not user_id_input.isdigit():
+            print("  ❌ Invalid ID.")
+            return
+
+        target_user = next((u for u in users if u.user_id == int(user_id_input)), None)
+        if not target_user:
+            print(f"  ❌ User ID {user_id_input} not found.")
+            return
+
+        print(f"\n  Unseen movies for {target_user.name}:")
+
+        # Uses our generator — yields one movie at a time (memory-efficient)
+        count = 0
+        for movie in self.unseen_movies_gen(target_user, movies):
+            movie.display()
+            count += 1
+
+        if count == 0:
+            print("  🎉 You've seen everything in the catalog!")
 
     # ── Main Menu Loop ────────────────────────────
 
@@ -361,6 +445,7 @@ class RecommendationSystem:
             print("  ║  5.  Browse Movies by Genre              ║")
             print("  ║  6.  Add New Movie to Catalog            ║")
             print("  ║  7.  Compare Two Users (Similarity)      ║")
+            print("  ║  8.  Browse Unseen Movies for User       ║")
             print("  ║  0.  Exit                                ║")
             print("  ╚══════════════════════════════════════════╝")
 
@@ -373,8 +458,9 @@ class RecommendationSystem:
             elif choice == "5": self.feature_browse_by_genre()
             elif choice == "6": self.feature_add_movie()
             elif choice == "7": self.feature_compare_users()
+            elif choice == "8": self.feature_unseen_movies()
             elif choice == "0":
                 print("\n  👋 Goodbye!\n")
                 break
             else:
-                print("  ❌ Invalid choice. Please enter 0–7.")
+                print("  ❌ Invalid choice. Please enter 0–8.")
