@@ -1,0 +1,12 @@
+[
+  {"id": "movie1", "title": "The Dark Knight",   "genre": "action",   "year": 2008, "rating": 9.0},
+  {"id": "movie2", "title": "Superbad",          "genre": "comedy",   "year": 2007, "rating": 7.6},
+  {"id": "movie3", "title": "The Godfather",     "genre": "drama",    "year": 1972, "rating": 9.2},
+  {"id": "movie4", "title": "Avengers",          "genre": "action",   "year": 2012, "rating": 8.0},
+  {"id": "movie5", "title": "Schindler's List",  "genre": "drama",    "year": 1993, "rating": 8.9},
+  {"id": "movie6", "title": "Inception",         "genre": "thriller", "year": 2010, "rating": 8.8},
+  {"id": "movie7", "title": "The Hangover",      "genre": "comedy",   "year": 2009, "rating": 7.7},
+  {"id": "movie8", "title": "Mad Max: Fury Road","genre": "action",   "year": 2015, "rating": 8.1},
+  {"id": "movie9", "title": "Parasite",          "genre": "thriller", "year": 2019, "rating": 8.6},
+  {"id": "movie10","title": "Forrest Gump",      "genre": "drama",    "year": 1994, "rating": 8.8}
+]
